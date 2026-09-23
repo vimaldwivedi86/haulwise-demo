@@ -9,6 +9,7 @@ type SharedTrack = {
   driver_name?: string | null;
   driver_phone?: string | null;
   position: { lat: number; lon: number; ts: string } | null;
+  eta_minutes?: number | null;
 };
 
 export default function PublicTrackingPage() {
@@ -38,6 +39,7 @@ export default function PublicTrackingPage() {
       ) : (
         <p>No position yet.</p>
       )}
+      {typeof data.eta_minutes === "number" && <p>ETA: ~{data.eta_minutes} min</p>}
     </div>
   );
 }

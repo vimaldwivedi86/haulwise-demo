@@ -1,10 +1,16 @@
+import uuid
+from datetime import datetime, timedelta, timezone
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from db import get_db
-from models import Driver, Position, ShareLink, Vehicle
+from eta import eta_minutes
+from models import Position, ShareLink, Vehicle
 
 router = APIRouter()
+
+LINK_LIFETIME = timedelta(hours=24)
 
 
 @router.post("/vehicles/{vehicle_id}/share")
@@ -13,13 +19,13 @@ def create_share_link(vehicle_id: str, db: Session = Depends(get_db)):
     if not vehicle:
         raise HTTPException(status_code=404, detail="vehicle not found")
 
-    link = ShareLink(token="", vehicle_id=vehicle.id, tenant_id=vehicle.tenant_id)
+    token = uuid.uuid4().hex
+    expires_at = datetime.now(timezone.utc) + LINK_LIFETIME
+    link = ShareLink(token=token, vehicle_id=vehicle.id, tenant_id=vehicle.tenant_id, expires_at=expires_at)
     db.add(link)
-    db.flush()
-    link.token = str(link.id)
     db.commit()
 
-    return {"token": link.token, "url": f"/t/{link.token}"}
+    return {"token": link.token, "url": f"/t/{link.token}", "expires_at": expires_at}
 
 
 @router.get("/t/{token}")
@@ -28,8 +34,10 @@ def resolve_share_link(token: str, db: Session = Depends(get_db)):
     if not link:
         raise HTTPException(status_code=404, detail="link not found")
 
+    if link.expires_at and link.expires_at < datetime.now(timezone.utc):
+        raise HTTPException(status_code=410, detail="link expired")
+
     vehicle = db.query(Vehicle).filter(Vehicle.id == link.vehicle_id).first()
-    driver = db.query(Driver).filter(Driver.id == vehicle.driver_id).first() if vehicle else None
     latest = (
         db.query(Position)
         .filter(Position.vehicle_id == link.vehicle_id)
@@ -37,9 +45,12 @@ def resolve_share_link(token: str, db: Session = Depends(get_db)):
         .first()
     )
 
+    eta = None
+    if latest and vehicle:
+        eta = eta_minutes(vehicle.route_name, latest.lat, latest.lon, latest.speed_kmh)
+
     return {
         "reg_number": vehicle.reg_number if vehicle else None,
-        "driver_name": driver.name if driver else None,
-        "driver_phone": driver.phone if driver else None,
         "position": {"lat": latest.lat, "lon": latest.lon, "ts": latest.ts} if latest else None,
+        "eta_minutes": eta,
     }
