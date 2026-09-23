@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import TenantSwitcher from "@/components/TenantSwitcher";
-import { apiGet, cmpGet, cmpPost, Driver, DprRequest, Tenant } from "@/lib/api";
+import { apiGet, apiPost, cmpGet, cmpPost, Driver, DprRequest, Tenant } from "@/lib/api";
 import { COPY, Lang } from "@/lib/i18n";
 
 type Receipt = {
@@ -66,6 +66,10 @@ export default function DriverAppPage() {
     try {
       await cmpPost(`/consent/${action}`, { driver_id: driverId, purpose: "face_verification" });
       await new Promise((r) => setTimeout(r, 400));
+      if (action === "grant") {
+        // Mirrors a real onboarding/verification call now that consent is on record.
+        await apiPost(`/drivers/${driverId}/onboard`);
+      }
       await refresh(driverId);
     } finally {
       setBusy(false);
