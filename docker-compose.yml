@@ -1,0 +1,156 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: haulwise
+      POSTGRES_PASSWORD: haulwise
+      POSTGRES_DB: haulwise
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U haulwise"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./services/simulator/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: haulwise
+      MINIO_ROOT_PASSWORD: haulwise123
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 haulwise haulwise123 &&
+      mc mb -p local/haulwise-media &&
+      mc anonymous set download local/haulwise-media &&
+      exit 0"
+
+  visionai_stub:
+    build: ./services/visionai_stub
+    ports:
+      - "8100:8100"
+      - "8143:8143"
+    volumes:
+      - vendordata:/data
+
+  cmp_stub:
+    build: ./services/cmp_stub
+    ports:
+      - "8200:8200"
+    environment:
+      HAULWISE_API_URL: http://api:8000
+      CMP_WEBHOOK_SECRET: haulwise-demo-shared-secret
+    volumes:
+      - cmpdata:/data
+
+  api:
+    build: ./services/api
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgresql+psycopg://haulwise:haulwise@postgres:5432/haulwise
+      REDIS_URL: redis://redis:6379/0
+      VISIONAI_URL: http://visionai_stub:8100
+      CMP_URL: http://cmp_stub:8200
+      CMP_WEBHOOK_SECRET: haulwise-demo-shared-secret
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: haulwise
+      S3_SECRET_KEY: haulwise123
+      S3_BUCKET: haulwise-media
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./db:/app/db:ro
+      - ./config:/app/config:ro
+
+  ingest:
+    build: ./services/ingest
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mosquitto:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgresql+psycopg://haulwise:haulwise@postgres:5432/haulwise
+      REDIS_URL: redis://redis:6379/0
+      MQTT_HOST: mosquitto
+      MQTT_PORT: "1883"
+
+  simulator:
+    build: ./services/simulator
+    depends_on:
+      - mosquitto
+      - minio-init
+    environment:
+      MQTT_HOST: mosquitto
+      MQTT_PORT: "1883"
+      DATABASE_URL: postgresql+psycopg://haulwise:haulwise@postgres:5432/haulwise
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: haulwise
+      S3_SECRET_KEY: haulwise123
+      S3_BUCKET: haulwise-media
+    volumes:
+      - ./db:/app/db:ro
+
+  web:
+    build:
+      context: ./apps/web
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+        NEXT_PUBLIC_WS_URL: ws://localhost:8000
+        NEXT_PUBLIC_CMP_URL: http://localhost:8200
+    depends_on:
+      - api
+    ports:
+      - "3000:3000"
+
+volumes:
+  pgdata:
+  miniodata:
+  vendordata:
+  cmpdata:

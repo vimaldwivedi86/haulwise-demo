@@ -1,0 +1,17 @@
+# Retention basis consulted by dpr/orchestrator.py step 6 (retention check)
+# on the compliant branch. Anything not listed here is deleted on withdrawal.
+retained_on_withdrawal:
+  - data_category: trip_tracking_positions
+    purpose: trip_tracking
+    basis: separate active consent purpose, not covered by a face_verification withdrawal
+    retention_days: 90
+
+  - data_category: safety_video_road_facing_clip
+    purpose: safety_video
+    basis: separate active consent purpose, not covered by a face_verification withdrawal
+    retention_days: 90
+
+  - data_category: dpr_evidence_pack
+    purpose: compliance_record
+    basis: candidate citation, confirm against Scrutora's mapping before the real demo (DPDP Act 2023, evidence/audit trail requirement)
+    retention_days: 2555 # ~7 years, candidate figure pending confirmation
