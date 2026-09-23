@@ -5,9 +5,19 @@ from sqlalchemy.orm import Session
 
 import storage
 from avatar import svg_avatar
-from models import Driver, VendorCall
+from models import Consent, Driver, VendorCall
 
 VISIONAI_URL = os.environ["VISIONAI_URL"]
+
+
+def has_active_consent(db: Session, driver: Driver, purpose: str) -> bool:
+    latest = (
+        db.query(Consent)
+        .filter(Consent.driver_id == driver.id, Consent.purpose == purpose)
+        .order_by(Consent.ts.desc())
+        .first()
+    )
+    return latest is not None and latest.status == "granted"
 
 
 def onboard_driver(db: Session, driver: Driver):
@@ -22,6 +32,19 @@ def onboard_driver(db: Session, driver: Driver):
 
 
 def call_vendor_verify(db: Session, driver: Driver, event_id: str | None = None):
+    if not has_active_consent(db, driver, "face_verification"):
+        db.add(
+            VendorCall(
+                vendor="visionai_stub",
+                endpoint="/v1/face/verify",
+                method="BLOCKED",
+                payload_preview={"reason": "face_verification consent not granted", "subject_id": f"drv-{driver.id}"},
+                driver_id=driver.id,
+            )
+        )
+        db.commit()
+        return
+
     # Pseudonymous subject_id only -- name, phone and DL number never leave
     # Haulwise. The vendor is declared in config/processors.yaml.
     payload = {

@@ -2,12 +2,14 @@ import hashlib
 import hmac
 import json
 import os
+import threading
 
 from fastapi import APIRouter, Header, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from db import SessionLocal
-from models import Consent, Driver
+from dpr.orchestrator import run as run_dpr_workflow
+from models import Consent, Driver, DprRequest
 
 router = APIRouter()
 
@@ -43,6 +45,19 @@ async def consent_webhook(request: Request, x_cmp_signature: str | None = Header
         db.add(Consent(driver_id=driver.id, purpose=purpose, status=status, receipt_id=receipt_id))
         db.commit()
 
-        return {"received": True}
+        dpr_id = None
+        if event == "consent.withdrawn" and purpose == "face_verification":
+            cmp_dpr_id = body["cmp_dpr_id"]
+            dpr = DprRequest(
+                cmp_request_id=cmp_dpr_id,
+                driver_id=driver.id,
+                trigger=f"consent.withdrawn:{purpose}",
+            )
+            db.add(dpr)
+            db.commit()
+            dpr_id = str(dpr.id)
+            threading.Thread(target=run_dpr_workflow, args=(dpr_id,), daemon=True).start()
+
+        return {"received": True, "dpr_id": dpr_id}
     finally:
         db.close()
