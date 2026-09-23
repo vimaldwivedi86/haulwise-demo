@@ -1,4 +1,5 @@
 version: "3.9"
+name: haulwise-compliant
 
 services:
   postgres:
@@ -8,7 +9,7 @@ services:
       POSTGRES_PASSWORD: haulwise
       POSTGRES_DB: haulwise
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -20,7 +21,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "6380:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 3s
@@ -30,7 +31,7 @@ services:
   mosquitto:
     image: eclipse-mosquitto:2
     ports:
-      - "1883:1883"
+      - "1884:1883"
     volumes:
       - ./services/simulator/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
 
@@ -41,8 +42,8 @@ services:
       MINIO_ROOT_USER: haulwise
       MINIO_ROOT_PASSWORD: haulwise123
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "9010:9000"
+      - "9011:9001"
     volumes:
       - miniodata:/data
     healthcheck:
@@ -66,15 +67,15 @@ services:
   visionai_stub:
     build: ./services/visionai_stub
     ports:
-      - "8100:8100"
-      - "8143:8143"
+      - "8101:8100"
+      - "8144:8143"
     volumes:
       - vendordata:/data
 
   cmp_stub:
     build: ./services/cmp_stub
     ports:
-      - "8200:8200"
+      - "8201:8200"
     environment:
       HAULWISE_API_URL: http://api:8000
       CMP_WEBHOOK_SECRET: haulwise-demo-shared-secret
@@ -101,7 +102,7 @@ services:
       S3_SECRET_KEY: haulwise123
       S3_BUCKET: haulwise-media
     ports:
-      - "8000:8000"
+      - "8001:8000"
     volumes:
       - ./db:/app/db:ro
       - ./config:/app/config:ro
@@ -141,13 +142,13 @@ services:
     build:
       context: ./apps/web
       args:
-        NEXT_PUBLIC_API_URL: http://localhost:8000
-        NEXT_PUBLIC_WS_URL: ws://localhost:8000
-        NEXT_PUBLIC_CMP_URL: http://localhost:8200
+        NEXT_PUBLIC_API_URL: http://localhost:8001
+        NEXT_PUBLIC_WS_URL: ws://localhost:8001
+        NEXT_PUBLIC_CMP_URL: http://localhost:8201
     depends_on:
       - api
     ports:
-      - "3000:3000"
+      - "3001:3000"
 
 volumes:
   pgdata:
