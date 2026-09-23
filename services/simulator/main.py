@@ -30,10 +30,22 @@ def load_fleet(engine):
     routes = load_routes()
     label_to_waypoints = {r["label"]: r["waypoints"] for r in routes.values()}
 
-    with engine.connect() as conn:
-        vehicles = conn.execute(
-            text("SELECT id, tenant_id, driver_id, reg_number, route_name FROM vehicles")
-        ).mappings().all()
+    # The api container runs migrations and seeds the fleet on its own
+    # startup, which can still be in flight when this container starts, so
+    # retry until the vehicles table exists and has rows rather than
+    # depending on service start order.
+    vehicles = []
+    for _ in range(60):
+        try:
+            with engine.connect() as conn:
+                vehicles = conn.execute(
+                    text("SELECT id, tenant_id, driver_id, reg_number, route_name FROM vehicles")
+                ).mappings().all()
+            if vehicles:
+                break
+        except Exception:
+            pass
+        time.sleep(2)
 
     fleet = []
     for i, v in enumerate(vehicles):

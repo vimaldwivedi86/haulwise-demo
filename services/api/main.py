@@ -98,6 +98,14 @@ async def _redis_listener():
                 )
 
 
+_background_tasks: set[asyncio.Task] = set()
+
+
 @app.on_event("startup")
 async def startup():
-    asyncio.create_task(_redis_listener())
+    # asyncio only holds a weak reference to a task created this way, so a
+    # strong reference has to be kept somewhere or the task (and the redis
+    # subscription it holds open) gets garbage collected almost immediately.
+    task = asyncio.create_task(_redis_listener())
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
