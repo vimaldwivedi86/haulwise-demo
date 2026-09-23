@@ -93,7 +93,7 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://haulwise:haulwise@postgres:5432/haulwise
       REDIS_URL: redis://redis:6379/0
-      VISIONAI_URL: http://visionai_stub:8100
+      VISIONAI_URL: https://visionai_stub:8143
       CMP_URL: http://cmp_stub:8200
       CMP_WEBHOOK_SECRET: haulwise-demo-shared-secret
       S3_ENDPOINT: http://minio:9000

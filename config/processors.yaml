@@ -1,2 +1,10 @@
 # Sub-processors Haulwise sends personal data to.
-processors: []
+processors:
+  - name: visionai_stub
+    purpose: face_verification
+    region: ap-south-1
+    data_categories:
+      - subject_id
+      - face_embedding
+    contract_ref: DPA-HAULWISE-VISIONAI-001
+    retention_days: 0 # vendor holds nothing beyond the verification call itself

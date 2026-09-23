@@ -22,16 +22,17 @@ def onboard_driver(db: Session, driver: Driver):
 
 
 def call_vendor_verify(db: Session, driver: Driver, event_id: str | None = None):
+    # Pseudonymous subject_id only -- name, phone and DL number never leave
+    # Haulwise. The vendor is declared in config/processors.yaml.
     payload = {
-        "name": driver.name,
-        "phone": driver.phone,
-        "dl_number": driver.dl_number,
-        "image_key": driver.face_image_key,
-        "image_url": storage.object_url(driver.face_image_key) if driver.face_image_key else None,
+        "subject_id": f"drv-{driver.id}",
+        "embedding_ref": driver.face_embedding,
         "event_id": event_id,
     }
 
-    with httpx.Client(timeout=10) as client:
+    # verify=False only because visionai_stub's TLS cert is self-signed for
+    # this demo; a real deployment would trust a real CA and drop this.
+    with httpx.Client(timeout=10, verify=False) as client:
         client.post(f"{VISIONAI_URL}/v1/face/verify", json=payload)
 
     db.add(
