@@ -72,16 +72,6 @@ services:
     volumes:
       - vendordata:/data
 
-  cmp_stub:
-    build: ./services/cmp_stub
-    ports:
-      - "8200:8200"
-    environment:
-      HAULWISE_API_URL: http://api:8000
-      CMP_WEBHOOK_SECRET: haulwise-demo-shared-secret
-    volumes:
-      - cmpdata:/data
-
   api:
     build: ./services/api
     depends_on:
@@ -95,8 +85,11 @@ services:
       DATABASE_URL: postgresql+psycopg://haulwise:haulwise@postgres:5432/haulwise
       REDIS_URL: redis://redis:6379/0
       VISIONAI_URL: http://visionai_stub:8100
-      CMP_URL: http://cmp_stub:8200
-      CMP_WEBHOOK_SECRET: haulwise-demo-shared-secret
+      SCRUTORA_API_BASE_URL: https://api.scrutora.com/api/consent
+      SCRUTORA_API_KEY: ${SCRUTORA_API_KEY:-}
+      SCRUTORA_SITE_ID: ${SCRUTORA_SITE_ID:-}
+      SCRUTORA_SITE_KEY: ${SCRUTORA_SITE_KEY:-}
+      SCRUTORA_WEBHOOK_SECRET: ${SCRUTORA_WEBHOOK_SECRET:-}
       S3_ENDPOINT: http://minio:9000
       S3_ACCESS_KEY: haulwise
       S3_SECRET_KEY: haulwise123
@@ -144,7 +137,7 @@ services:
       args:
         NEXT_PUBLIC_API_URL: http://localhost:8000
         NEXT_PUBLIC_WS_URL: ws://localhost:8000
-        NEXT_PUBLIC_CMP_URL: http://localhost:8200
+        NEXT_PUBLIC_SCRUTORA_SITE_KEY: ${SCRUTORA_SITE_KEY:-}
     depends_on:
       - api
     ports:
@@ -154,4 +147,3 @@ volumes:
   pgdata:
   miniodata:
   vendordata:
-  cmpdata:

@@ -10,7 +10,7 @@ import consent_webhook
 import face
 from db import SessionLocal
 from models import Driver, VideoEvent
-from routes import dpr, drivers, positions, share, tenants, vehicles, vendor_log, video_events
+from routes import consent_state, dpr, drivers, positions, share, tenants, vehicles, vendor_log, video_events
 
 app = FastAPI(title="Haulwise API")
 
@@ -26,6 +26,7 @@ app.include_router(vehicles.router)
 app.include_router(positions.router)
 app.include_router(share.router)
 app.include_router(drivers.router)
+app.include_router(consent_state.router)
 app.include_router(video_events.router)
 app.include_router(vendor_log.router)
 app.include_router(dpr.router)
