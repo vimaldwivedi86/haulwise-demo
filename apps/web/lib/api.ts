@@ -22,6 +22,23 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
   return res.json();
 }
 
+export type DsrRequestType = "access" | "correction" | "erasure" | "withdraw" | "grievance" | "nominate";
+export type DsrResult = { ok: boolean; request_id: string; sla_due_at: string };
+
+/** Calls Scrutora's DSR intake directly from the browser, matching their
+ * own documented pattern -- it needs no secret, only the public site key
+ * in the URL, and text/plain avoids a CORS preflight. */
+export async function submitDsr(requestType: DsrRequestType, email: string, details?: string): Promise<DsrResult> {
+  if (!SCRUTORA_SITE_KEY) throw new Error("NEXT_PUBLIC_SCRUTORA_SITE_KEY isn't set");
+  const res = await fetch(`https://api.scrutora.com/api/consent/dsr/cs_${SCRUTORA_SITE_KEY}`, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify({ request_type: requestType, email, details }),
+  });
+  if (!res.ok) throw new Error(`DSR submission failed -> ${res.status}`);
+  return res.json();
+}
+
 declare global {
   interface Window {
     ScrutoraConsent?: {
