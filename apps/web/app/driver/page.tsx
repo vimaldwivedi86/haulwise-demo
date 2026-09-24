@@ -1,32 +1,25 @@
 "use client";
 
+import Script from "next/script";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import TenantSwitcher from "@/components/TenantSwitcher";
-import { apiGet, apiPost, cmpGet, cmpPost, Driver, DprRequest, Tenant } from "@/lib/api";
-import { COPY, Lang } from "@/lib/i18n";
+import { apiGet, Driver, DprRequest, SCRUTORA_EMBED_SRC, Tenant } from "@/lib/api";
 
-type Receipt = {
-  receipt_id: string;
-  seq: number;
-  purpose: string;
-  action: string;
-  ts: number;
-  hash: string;
+type ScrutoraState = {
+  found?: boolean;
+  purposes?: Record<string, boolean>;
+  status?: string;
+  collected_at?: string;
 };
-
-type ConsentMap = Record<string, { status: string; receipt_id: string | null; ts: string }>;
 
 export default function DriverAppPage() {
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [tenantId, setTenantId] = useState("");
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [driverId, setDriverId] = useState("");
-  const [consents, setConsents] = useState<ConsentMap>({});
-  const [receipts, setReceipts] = useState<Receipt[]>([]);
+  const [scrutoraState, setScrutoraState] = useState<ScrutoraState | null>(null);
   const [dprList, setDprList] = useState<DprRequest[]>([]);
-  const [lang, setLang] = useState<Lang>("en");
-  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     apiGet<Tenant[]>("/tenants").then((rows) => {
@@ -44,42 +37,27 @@ export default function DriverAppPage() {
   }, [tenantId]);
 
   async function refresh(id: string) {
-    const [c, r, d] = await Promise.all([
-      apiGet<ConsentMap>(`/drivers/${id}/consents`),
-      cmpGet<Receipt[]>(`/receipts/${id}`),
+    const [state, dpr] = await Promise.all([
+      apiGet<ScrutoraState>(`/drivers/${id}/scrutora-state`).catch(() => null),
       apiGet<DprRequest[]>(`/dpr?driver_id=${id}`),
     ]);
-    setConsents(c);
-    setReceipts(r);
-    setDprList(d);
+    setScrutoraState(state);
+    setDprList(dpr);
   }
 
   useEffect(() => {
-    if (driverId) refresh(driverId);
+    if (!driverId) return;
+    refresh(driverId);
+    // Polls rather than hooking a widget event, since the docs don't
+    // document one for "a purpose just changed."
+    const interval = setInterval(() => refresh(driverId), 3000);
+    return () => clearInterval(interval);
   }, [driverId]);
-
-  const faceConsent = consents["face_verification"];
-  const isGranted = faceConsent?.status === "granted";
-
-  async function act(action: "grant" | "withdraw") {
-    setBusy(true);
-    try {
-      await cmpPost(`/consent/${action}`, { driver_id: driverId, purpose: "face_verification" });
-      await new Promise((r) => setTimeout(r, 400));
-      if (action === "grant") {
-        // Mirrors a real onboarding/verification call now that consent is on record.
-        await apiPost(`/drivers/${driverId}/onboard`);
-      }
-      await refresh(driverId);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  const t = COPY[lang];
 
   return (
     <div className="grid" style={{ gap: 16 }}>
+      {SCRUTORA_EMBED_SRC && <Script src={SCRUTORA_EMBED_SRC} strategy="afterInteractive" />}
+
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <h1 style={{ fontSize: 18, margin: 0 }}>Driver App</h1>
         <div style={{ display: "flex", gap: 12 }}>
@@ -98,54 +76,44 @@ export default function DriverAppPage() {
         </div>
       </div>
 
+      {!SCRUTORA_EMBED_SRC && (
+        <div className="panel" style={{ color: "#8b98a5" }}>
+          NEXT_PUBLIC_SCRUTORA_SITE_KEY isn&apos;t set, so the Scrutora consent widget can&apos;t load. Set it and
+          rebuild the web image to capture consent here.
+        </div>
+      )}
+
       <div className="phone-frame">
-        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
-          <button onClick={() => setLang(lang === "en" ? "hi" : "en")} style={{ background: "none", border: "1px solid #232d38", color: "#8b98a5", borderRadius: 6, padding: "4px 10px" }}>
-            {lang === "en" ? "हिंदी" : "English"}
-          </button>
-        </div>
+        <p style={{ color: "#8b98a5", fontSize: 13, lineHeight: 1.5 }}>
+          Consent is captured by Scrutora&apos;s own widget. Use its banner, or the button below to reopen its
+          preferences panel and change a purpose.
+        </p>
 
-        <h2 style={{ fontSize: 16 }}>{t.title}</h2>
-        <p style={{ color: "#8b98a5", fontSize: 13, lineHeight: 1.5 }}>{t.body}</p>
-
-        <div style={{ margin: "16px 0" }}>
-          <span className={`tag ${isGranted ? "ok" : "pending"}`}>
-            {isGranted ? t.granted : t.withdrawn}
-          </span>
-        </div>
-
-        {!isGranted ? (
-          <button
-            disabled={busy}
-            onClick={() => act("grant")}
-            style={{ width: "100%", background: "#3b82f6", color: "white", border: "none", borderRadius: 8, padding: "12px" }}
-          >
-            {t.grant}
-          </button>
-        ) : (
-          <button
-            disabled={busy}
-            onClick={() => act("withdraw")}
-            style={{ width: "100%", background: "#ef4444", color: "white", border: "none", borderRadius: 8, padding: "12px" }}
-          >
-            {t.withdraw}
-          </button>
-        )}
+        <button
+          onClick={() => window.ScrutoraConsent?.openPreferences()}
+          disabled={!SCRUTORA_EMBED_SRC}
+          style={{ width: "100%", background: "#3b82f6", color: "white", border: "none", borderRadius: 8, padding: "12px" }}
+        >
+          Manage consent preferences
+        </button>
 
         <div style={{ marginTop: 20 }}>
-          <h3 style={{ fontSize: 13, color: "#8b98a5" }}>{t.receipts}</h3>
-          {receipts.map((r) => (
-            <div key={r.receipt_id} style={{ fontSize: 12, borderBottom: "1px solid #232d38", padding: "6px 0" }}>
-              <div>{r.receipt_id} — {r.action}</div>
-              <div style={{ color: "#8b98a5" }}>{new Date(r.ts * 1000).toLocaleString()}</div>
-            </div>
-          ))}
-          {receipts.length === 0 && <p style={{ color: "#8b98a5", fontSize: 12 }}>No receipts yet.</p>}
+          <h3 style={{ fontSize: 13, color: "#8b98a5" }}>Current state (from Scrutora)</h3>
+          {scrutoraState?.purposes ? (
+            Object.entries(scrutoraState.purposes).map(([purpose, granted]) => (
+              <div key={purpose} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, borderBottom: "1px solid #232d38", padding: "6px 0" }}>
+                <span>{purpose}</span>
+                <span className={`tag ${granted ? "ok" : "pending"}`}>{granted ? "granted" : "withdrawn"}</span>
+              </div>
+            ))
+          ) : (
+            <p style={{ color: "#8b98a5", fontSize: 12 }}>No state on record yet for this driver.</p>
+          )}
         </div>
 
         {dprList.length > 0 && (
           <div style={{ marginTop: 20 }}>
-            <h3 style={{ fontSize: 13, color: "#8b98a5" }}>{t.dpr}</h3>
+            <h3 style={{ fontSize: 13, color: "#8b98a5" }}>Your data request</h3>
             {dprList.map((d) => (
               <Link key={d.id} href={`/dpr/${d.id}`} style={{ display: "block", fontSize: 13, padding: "6px 0" }}>
                 {d.status === "closed" ? "✓" : "…"} {d.trigger} — {d.status}

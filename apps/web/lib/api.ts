@@ -1,6 +1,9 @@
 export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 export const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000";
-export const CMP_URL = process.env.NEXT_PUBLIC_CMP_URL || "http://localhost:8200";
+export const SCRUTORA_SITE_KEY = process.env.NEXT_PUBLIC_SCRUTORA_SITE_KEY || "";
+export const SCRUTORA_EMBED_SRC = SCRUTORA_SITE_KEY
+  ? `https://api.scrutora.com/api/consent/embed/cs_${SCRUTORA_SITE_KEY}.js`
+  : null;
 
 export async function apiGet<T>(path: string): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, { cache: "no-store" });
@@ -19,21 +22,13 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
   return res.json();
 }
 
-export async function cmpPost<T>(path: string, body?: unknown): Promise<T> {
-  const res = await fetch(`${CMP_URL}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: body ? JSON.stringify(body) : undefined,
-    cache: "no-store",
-  });
-  if (!res.ok) throw new Error(`${path} -> ${res.status}`);
-  return res.json();
-}
-
-export async function cmpGet<T>(path: string): Promise<T> {
-  const res = await fetch(`${CMP_URL}${path}`, { cache: "no-store" });
-  if (!res.ok) throw new Error(`${path} -> ${res.status}`);
-  return res.json();
+declare global {
+  interface Window {
+    ScrutoraConsent?: {
+      getConsent: () => { states: Record<string, boolean> } | undefined;
+      openPreferences: () => void;
+    };
+  }
 }
 
 export type Tenant = { id: string; name: string };

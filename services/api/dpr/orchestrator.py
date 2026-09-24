@@ -5,7 +5,6 @@ timeline screen can show real progress rather than a single final state."""
 
 import io
 import json
-import os
 import time
 
 import httpx
@@ -17,8 +16,6 @@ import storage
 from config import load_retention
 from db import SessionLocal
 from models import Consent, Driver, DprRequest, DprStep, VendorCall, VideoEvent
-
-CMP_URL = os.environ.get("CMP_URL", "http://cmp_stub:8200")
 
 STEP_PACE_SECONDS = 0.6
 
@@ -117,16 +114,11 @@ def run(dpr_id: str):
         _record_step(db, dpr, 7, "done", other_purposes)
 
         # Step 8: post status back to the CMP; it notifies the driver.
-        cmp_notification_id = None
-        try:
-            with httpx.Client(timeout=10) as client:
-                resp = client.post(
-                    f"{CMP_URL}/dpr/{dpr.cmp_request_id}/status",
-                    json={"status": "closed", "detail": "face_verification withdrawal fulfilled"},
-                )
-                cmp_notification_id = resp.json().get("notification_id")
-        except httpx.HTTPError as exc:
-            cmp_notification_id = f"error: {exc}"
+        # https://scrutora.com/docs/consent (fetched 2026-09-24) documents
+        # no endpoint for this -- only a one-way webhook out of Scrutora,
+        # nothing for posting a DPR/DSR's status back in. Recorded as a gap
+        # rather than calling something that doesn't exist.
+        cmp_notification_id = "not available: no status-callback endpoint documented for the real Scrutora CMP"
         _record_step(db, dpr, 8, "done", {"cmp_status": "closed", "notification_id": cmp_notification_id})
 
         # Step 9: close the DPR with an evidence pack (JSON + PDF).
