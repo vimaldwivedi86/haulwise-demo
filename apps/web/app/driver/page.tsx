@@ -23,6 +23,7 @@ export default function DriverAppPage() {
   const [scrutoraState, setScrutoraState] = useState<ScrutoraState | null>(null);
   const [dprList, setDprList] = useState<DprRequest[]>([]);
 
+  const [dsrOpen, setDsrOpen] = useState(false);
   const [dsrType, setDsrType] = useState<DsrRequestType>("access");
   const [dsrEmail, setDsrEmail] = useState("");
   const [dsrDetails, setDsrDetails] = useState("");
@@ -62,6 +63,13 @@ export default function DriverAppPage() {
     const interval = setInterval(() => refresh(driverId), 3000);
     return () => clearInterval(interval);
   }, [driverId]);
+
+  useEffect(() => {
+    if (!dsrOpen) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setDsrOpen(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [dsrOpen]);
 
   async function raiseDsr() {
     setDsrBusy(true);
@@ -144,58 +152,73 @@ export default function DriverAppPage() {
             ))}
           </div>
         )}
-      </div>
-
-      <div className="panel" style={{ maxWidth: 420 }}>
-        <h2 style={{ fontSize: 14, margin: "0 0 4px" }}>Raise a data rights request</h2>
-        <p style={{ color: "#8b98a5", fontSize: 12, marginTop: 0 }}>
-          Goes straight to Scrutora&apos;s DSR intake. They email a verification link before anything is actioned;
-          the request then appears under Records &amp; requests in the Scrutora dashboard, not here.
-        </p>
-
-        <select
-          value={dsrType}
-          onChange={(e) => setDsrType(e.target.value as DsrRequestType)}
-          style={{ width: "100%", background: "#0d1319", color: "#e6edf3", border: "1px solid #232d38", borderRadius: 8, padding: "8px", marginBottom: 8 }}
-        >
-          {DSR_TYPES.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
-        </select>
-
-        <input
-          type="email"
-          placeholder="Requester email"
-          value={dsrEmail}
-          onChange={(e) => setDsrEmail(e.target.value)}
-          style={{ width: "100%", background: "#0d1319", color: "#e6edf3", border: "1px solid #232d38", borderRadius: 8, padding: "8px", marginBottom: 8 }}
-        />
-
-        <textarea
-          placeholder="Optional details"
-          value={dsrDetails}
-          onChange={(e) => setDsrDetails(e.target.value)}
-          rows={3}
-          style={{ width: "100%", background: "#0d1319", color: "#e6edf3", border: "1px solid #232d38", borderRadius: 8, padding: "8px", marginBottom: 8 }}
-        />
 
         <button
-          onClick={raiseDsr}
-          disabled={dsrBusy || !dsrEmail || !SCRUTORA_SITE_KEY}
-          style={{ width: "100%", background: "#3b82f6", color: "white", border: "none", borderRadius: 8, padding: "10px" }}
+          onClick={() => setDsrOpen(true)}
+          style={{ width: "100%", marginTop: 20, background: "none", color: "#8b98a5", border: "1px solid #232d38", borderRadius: 8, padding: "10px" }}
         >
-          {dsrBusy ? "Submitting..." : "Submit request"}
+          Exercise your data rights
         </button>
-
-        {dsrResult && (
-          <p style={{ color: "#22c55e", fontSize: 12, marginTop: 8 }}>
-            Raised: {dsrResult.request_id}, SLA due {new Date(dsrResult.sla_due_at).toLocaleString()}
-          </p>
-        )}
-        {dsrError && <p style={{ color: "#ef4444", fontSize: 12, marginTop: 8 }}>{dsrError}</p>}
       </div>
+
+      {dsrOpen && (
+        <div className="modal-backdrop" onClick={() => setDsrOpen(false)}>
+          <div className="panel modal-box" onClick={(e) => e.stopPropagation()}>
+            <button className="modal-close" onClick={() => setDsrOpen(false)} aria-label="Close">
+              ×
+            </button>
+
+            <h2 style={{ fontSize: 14, margin: "0 0 4px" }}>Raise a data rights request</h2>
+            <p style={{ color: "#8b98a5", fontSize: 12, marginTop: 0 }}>
+              Goes straight to Scrutora&apos;s DSR intake. They email a verification link before anything is
+              actioned; the request then appears under Records &amp; requests in the Scrutora dashboard, not here.
+            </p>
+
+            <select
+              value={dsrType}
+              onChange={(e) => setDsrType(e.target.value as DsrRequestType)}
+              style={{ width: "100%", background: "#0d1319", color: "#e6edf3", border: "1px solid #232d38", borderRadius: 8, padding: "8px", marginBottom: 8 }}
+            >
+              {DSR_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+
+            <input
+              type="email"
+              placeholder="Requester email"
+              value={dsrEmail}
+              onChange={(e) => setDsrEmail(e.target.value)}
+              style={{ width: "100%", background: "#0d1319", color: "#e6edf3", border: "1px solid #232d38", borderRadius: 8, padding: "8px", marginBottom: 8 }}
+            />
+
+            <textarea
+              placeholder="Optional details"
+              value={dsrDetails}
+              onChange={(e) => setDsrDetails(e.target.value)}
+              rows={3}
+              style={{ width: "100%", background: "#0d1319", color: "#e6edf3", border: "1px solid #232d38", borderRadius: 8, padding: "8px", marginBottom: 8 }}
+            />
+
+            <button
+              onClick={raiseDsr}
+              disabled={dsrBusy || !dsrEmail || !SCRUTORA_SITE_KEY}
+              style={{ width: "100%", background: "#3b82f6", color: "white", border: "none", borderRadius: 8, padding: "10px" }}
+            >
+              {dsrBusy ? "Submitting..." : "Submit request"}
+            </button>
+
+            {dsrResult && (
+              <p style={{ color: "#22c55e", fontSize: 12, marginTop: 8 }}>
+                Raised: {dsrResult.request_id}, SLA due {new Date(dsrResult.sla_due_at).toLocaleString()}
+              </p>
+            )}
+            {dsrError && <p style={{ color: "#ef4444", fontSize: 12, marginTop: 8 }}>{dsrError}</p>}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
