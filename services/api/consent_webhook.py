@@ -70,6 +70,15 @@ async def consent_webhook(
     data = body.get("data", {})
     purposes: dict = data.get("purposes", {})
 
+    if event == "dsr.created":
+        # A formal rights request (access/correction/erasure/withdraw/
+        # grievance/nominate), identified by the requester's email rather
+        # than a driver's phone, and gated on Scrutora's own email
+        # verification before it's actioned. Haulwise doesn't need its own
+        # copy of this queue -- it already lives under Records & requests
+        # in the Scrutora dashboard -- so this just acknowledges receipt.
+        return {"received": True, "event": event}
+
     db: Session = SessionLocal()
     try:
         driver = _resolve_driver(db, data)
